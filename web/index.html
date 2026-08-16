@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>元代断案官 · 路府推官</title>
+<style>
+  :root {
+    --paper: #f3ecd9;
+    --ink: #2b2620;
+    --accent: #8c3a2b;
+    --line: #d8cba8;
+    --soft: #e9e0c8;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Noto Serif SC", "Songti SC", SimSun, serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    text-align: center;
+    padding: 14px 10px 8px;
+    border-bottom: 2px solid var(--line);
+  }
+  header h1 { font-size: 1.5rem; letter-spacing: 4px; color: var(--accent); }
+  header p { font-size: 0.8rem; color: #7a6f5a; margin-top: 4px; }
+  #config {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    padding: 8px 12px; background: var(--soft); border-bottom: 1px solid var(--line);
+    font-size: 0.8rem; align-items: center;
+  }
+  #config input { flex: 1; min-width: 160px; padding: 6px 8px; border: 1px solid var(--line); background: #fffdf5; border-radius: 3px; font-size: 0.8rem; }
+  #config button { padding: 6px 12px; background: var(--accent); color: #fff; border: none; border-radius: 3px; cursor: pointer; }
+  #chat {
+    flex: 1; overflow-y: auto; padding: 16px 14px;
+    max-width: 860px; width: 100%; margin: 0 auto;
+  }
+  .msg { margin-bottom: 16px; }
+  .who { font-size: 0.75rem; color: #7a6f5a; margin-bottom: 4px; letter-spacing: 2px; }
+  .bubble {
+    background: #fffdf5;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 10px 12px;
+    white-space: pre-wrap;
+    line-height: 1.7;
+    font-size: 0.95rem;
+  }
+  .user .bubble { background: var(--soft); }
+  .assistant .bubble { box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  .thinking { color: #a08d6a; font-style: italic; font-size: 0.85rem; }
+  .cursor::after { content: "▌"; animation: blink 1s infinite; color: var(--accent); }
+  @keyframes blink { 50% { opacity: 0; } }
+  footer {
+    border-top: 2px solid var(--line);
+    padding: 10px 12px; background: var(--soft);
+  }
+  #composer { display: flex; gap: 8px; max-width: 860px; margin: 0 auto; }
+  #input {
+    flex: 1; resize: none; height: 60px;
+    border: 1px solid var(--line); border-radius: 4px;
+    background: #fffdf5; padding: 10px;
+    font-family: inherit; font-size: 0.95rem;
+  }
+  #send { padding: 0 26px; background: var(--accent); color: #fff; border: none; border-radius: 4px; font-size: 1rem; cursor: pointer; letter-spacing: 3px; }
+  #send:disabled { background: #b9a88c; cursor: wait; }
+  #samples { max-width: 860px; margin: 0 auto; padding: 0 12px 8px; font-size: 0.78rem; color: #7a6f5a; display: flex; gap: 8px; flex-wrap: wrap; }
+  #samples span { border-bottom: 1px dashed var(--line); cursor: pointer; padding: 2px 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>元 代 断 案 官</h1>
+  <p>路府推官拟判 · 法条可溯源 · 硬译判词</p>
+</header>
+
+<div id="config">
+  <span>API 地址</span>
+  <input id="base" placeholder="https://xxx/v1">
+  <span>密钥</span>
+  <input id="key" type="password" placeholder="访问密钥">
+  <button onclick="saveCfg()">保存</button>
+</div>
+
+<div id="chat"></div>
+
+<div id="samples">
+  试一桩：
+  <span onclick="tryCase(this)">张三夜里偷了邻居王五家一头牛</span>
+  <span onclick="tryCase(this)">某人贩私盐五十斤被拿获</span>
+  <span onclick="tryCase(this)">某人在城中贩卖鸦片牟利</span>
+  <span onclick="tryCase(this)">甲乙口角互殴，甲打死乙</span>
+  <span onclick="clearChat()" style="color:#8c3a2b">清空</span>
+</div>
+
+<footer>
+  <div id="composer">
+    <textarea id="input" placeholder="把案情道来：何人、何事、何时，赃数几何、首从几人……（回车发送，Shift+回车换行）"></textarea>
+    <button id="send" onclick="send()">呈案</button>
+  </div>
+</footer>
+
+<script>
+let history = [];
+
+function $(id) { return document.getElementById(id); }
+
+function saveCfg() {
+  localStorage.setItem('yj_base', $('base').value.trim());
+  localStorage.setItem('yj_key', $('key').value.trim());
+  append('sys', '配置已保存。');
+}
+
+$('base').value = localStorage.getItem('yj_base') || 'https://1310259357-jv0d7vxz84.ap-beijing.tencentscf.com/v1';
+$('key').value = localStorage.getItem('yj_key') || '';
+
+function append(who, text, className) {
+  const chat = $('chat');
+  const wrap = document.createElement('div');
+  wrap.className = 'msg ' + who;
+  if (className) wrap.className += ' ' + className;
+  const w = document.createElement('div');
+  w.className = 'who';
+  w.textContent = who === 'user' ? '原告' : (who === 'sys' ? '衙门' : '推官');
+  const b = document.createElement('div');
+  b.className = 'bubble';
+  b.textContent = text;
+  wrap.appendChild(w); wrap.appendChild(b);
+  chat.appendChild(wrap);
+  chat.scrollTop = chat.scrollHeight;
+  return b;
+}
+
+function tryCase(el) {
+  $('input').value = el.textContent;
+  send();
+}
+
+function clearChat() {
+  history = [];
+  $('chat').innerHTML = '';
+}
+
+async function send() {
+  const q = $('input').value.trim();
+  if (!q) return;
+  const base = $('base').value.trim(), key = $('key').value.trim();
+  if (!base || !key) { append('sys', '请先在上方填写 API 地址与密钥并保存。'); return; }
+  $('input').value = '';
+  history.push({ role: 'user', content: q });
+  append('user', q);
+  const box = append('assistant', '推官斟酌中……', 'thinking');
+  const btn = $('send');
+  btn.disabled = true;
+  try {
+    const resp = await fetch(base + '/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+      body: JSON.stringify({ messages: history, stream: true })
+    });
+    if (!resp.ok) {
+      box.textContent = '调用失败：HTTP ' + resp.status + '（检查密钥与地址，或告知部署者）';
+      history.pop();
+      return;
+    }
+    const reader = resp.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '', started = false, full = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let idx;
+      while ((idx = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, idx).trim();
+        buf = buf.slice(idx + 1);
+        if (!line.startsWith('data:')) continue;
+        const data = line.slice(5).trim();
+        if (data === '[DONE]') continue;
+        try {
+          const j = JSON.parse(data);
+          const d = (j.choices && j.choices[0] && j.choices[0].delta) || {};
+          if (d.reasoning && !started) {
+            box.textContent = '推官斟酌中……' + (d.reasoning.length > 14 ? d.reasoning.slice(-14) : d.reasoning);
+          }
+          if (d.content) {
+            if (!started) { started = true; box.textContent = ''; box.classList.remove('thinking'); }
+            full += d.content;
+            box.textContent = full;
+            $('chat').scrollTop = $('chat').scrollHeight;
+          }
+        } catch (e) {}
+      }
+    }
+    if (!full) { box.textContent = '（未收到判词，请稍后再试）'; history.pop(); return; }
+    history.push({ role: 'assistant', content: full });
+  } catch (e) {
+    box.textContent = '网络错误：' + e.message;
+    history.pop();
+  } finally {
+    btn.disabled = false;
+    $('input').focus();
+  }
+}
+
+$('input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+});
+</script>
+</body>
+</html>
