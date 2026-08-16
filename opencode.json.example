@@ -3,7 +3,7 @@
   "references": {
     "law-index": {
       "path": "法条库/00_罪名索引.md",
-      "description": "元代罪名索引表：36 门类、罪名与口语关键词、出处、刑罚概要，供 yuan-judge 断案定性检索。"
+      "description": "元代罪名索引表：40 门类、罪名与口语关键词、出处、刑罚概要，供 yuan-judge 断案定性检索。"
     }
   }
 }
