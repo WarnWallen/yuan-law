@@ -115,7 +115,7 @@ function saveCfg() {
   append('sys', '配置已保存。');
 }
 
-$('base').value = localStorage.getItem('yj_base') || 'https://1310259357-jv0d7vxz84.ap-beijing.tencentscf.com/v1';
+$('base').value = localStorage.getItem('yj_base') || '';
 $('key').value = localStorage.getItem('yj_key') || '';
 
 function append(who, text, className) {
